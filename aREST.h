@@ -4,10 +4,11 @@
  
   Written in 2014 by Marco Schwartz under a GPL license. 
 
-  Version 1.9.4
+  Version 1.9.5
 
   Changelog:
 
+  Version 1.9.5: Added feature to define handlers which return arbitrary bytes to output
   Version 1.9.4: Bug fixes & added support for configuring analog pints as digital outputs
   Version 1.9.3: Added description of available variables for the /id and / routes
   Version 1.9.2: Added compatibility with the Arduino WiFi library
@@ -427,6 +428,25 @@ void process(char c){
          }
        }
 
+       // Check if arbitrary return function name is in array
+       for (uint8_t i = 0; i < arbitrary_functions_index; i++){
+         if(answer.startsWith(arbitrary_return_functions_names[i])) {
+           
+           // End here
+           pin_selected = true;
+           state = 'x';
+
+           // Set state
+           command = '.';
+           value = i;
+
+           // Get command
+           uint8_t header_length = strlen(arbitrary_return_functions_names[i]) + 8;
+           //strcpy(arguments, answer.substring(header_length).c_str());
+           arguments = answer.substring(header_length);
+         }
+       }
+
        // If the command is "id", return device id, name and status
        if ( (answer[0] == 'i' && answer[1] == 'd') ){
 
@@ -467,7 +487,7 @@ bool send_command(bool headers) {
    }
 
    // Start of message
-   if (headers) {send_http_headers();}
+   if (command != '.' && headers == true) {send_http_headers();}
 
    // Mode selected
    if (command == 'm'){
@@ -642,6 +662,14 @@ bool send_command(bool headers) {
     }
   }
 
+  // Arbitrary return function selected
+  if (command == '.') {
+
+    // Execute function, not much to do here since the function is responsible
+    // of calling addToBuffer and (if needed) send the headers
+    arbitrary_return_functions[value](arguments, headers);
+  }
+
   if (command == 'r') {
     if (LIGHTWEIGHT) {addToBuffer(id);}
     else {
@@ -707,6 +735,13 @@ void function(char * function_name, int (*f)(String)){
   functions_names[functions_index] = function_name;
   functions[functions_index] = f;
   functions_index++;
+}
+
+void arbitrary_return_function(char * function_name, int (*f)(String, bool)){
+
+  arbitrary_return_functions_names[arbitrary_functions_index] = function_name;
+  arbitrary_return_functions[arbitrary_functions_index] = f;
+  arbitrary_functions_index++;
 }
 
 // Set device ID
@@ -842,4 +877,9 @@ private:
   uint8_t functions_index;
   int (*functions[NUMBER_FUNCTIONS])(String);
   char * functions_names[NUMBER_FUNCTIONS];
+
+  // Arbitrary functions array
+  uint8_t arbitrary_functions_index;
+  int (*arbitrary_return_functions[NUMBER_FUNCTIONS])(String, bool);
+  char * arbitrary_return_functions_names[NUMBER_FUNCTIONS];
 };
